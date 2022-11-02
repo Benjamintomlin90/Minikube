@@ -1,0 +1,9 @@
+export enum XR_FOLLOW_MODE {
+  HEAD = 'HEAD',
+  CONTROLLER = 'CONTROLLER'
+}
+
+export enum XR_ROTATION_MODE {
+  ANGLED = 'ANGLED',
+  SMOOTH = 'SMOOTH'
+}

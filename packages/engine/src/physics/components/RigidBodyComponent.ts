@@ -1,0 +1,88 @@
+import { RigidBody, RigidBodyType } from '@dimforge/rapier3d-compat'
+import { Types } from 'bitecs'
+import { Quaternion, Vector3 } from 'three'
+
+import { proxifyQuaternion, proxifyVector3 } from '../../common/proxies/createThreejsProxy'
+import { Engine } from '../../ecs/classes/Engine'
+import { createMappedComponent, defineComponent, removeComponent } from '../../ecs/functions/ComponentFunctions'
+
+const { f64 } = Types
+const Vector3Schema = { x: f64, y: f64, z: f64 }
+const QuaternionSchema = { x: f64, y: f64, z: f64, w: f64 }
+const SCHEMA = {
+  previousPosition: Vector3Schema,
+  previousRotation: QuaternionSchema,
+  previousLinearVelocity: Vector3Schema,
+  previousAngularVelocity: Vector3Schema,
+  position: Vector3Schema,
+  rotation: QuaternionSchema,
+  linearVelocity: Vector3Schema,
+  angularVelocity: Vector3Schema
+}
+
+export const RigidBodyComponent = defineComponent({
+  name: 'RigidBodyComponent',
+  schema: SCHEMA,
+
+  onInit(entity) {
+    return {
+      body: null! as RigidBody,
+      previousPosition: proxifyVector3(this.previousPosition, entity),
+      previousRotation: proxifyQuaternion(this.previousRotation, entity),
+      previousLinearVelocity: proxifyVector3(this.previousLinearVelocity, entity),
+      previousAngularVelocity: proxifyVector3(this.previousAngularVelocity, entity),
+      position: proxifyVector3(this.position, entity),
+      rotation: proxifyQuaternion(this.rotation, entity),
+      linearVelocity: proxifyVector3(this.linearVelocity, entity),
+      angularVelocity: proxifyVector3(this.angularVelocity, entity)
+    }
+  },
+
+  onSet: (entity, component, json: { body: RigidBody }) => {
+    if (typeof json.body === 'object') component.body.set(json.body as RigidBody)
+    else throw new Error('RigidBodyComponent expects a RigidBody instance')
+  },
+
+  onRemove: (entity, component) => {
+    const world = Engine.instance.currentWorld.physicsWorld
+    const rigidBody = component.body.value
+    if (rigidBody) {
+      const RigidBodyTypeTagComponent = getTagComponentForRigidBody(rigidBody.bodyType())
+      if (world.bodies.contains(rigidBody.handle)) {
+        world.removeRigidBody(rigidBody)
+      }
+      removeComponent(entity, RigidBodyTypeTagComponent)
+    }
+  }
+})
+
+export const RigidBodyDynamicTagComponent = createMappedComponent<true>('RigidBodyDynamicTagComponent')
+export const RigidBodyFixedTagComponent = createMappedComponent<true>('RigidBodyFixedTagComponent')
+export const RigidBodyKinematicPositionBasedTagComponent = createMappedComponent<true>(
+  'RigidBodyKinematicPositionBasedTagComponent'
+)
+export const RigidBodyKinematicVelocityBasedTagComponent = createMappedComponent<true>(
+  'RigidBodyKinematicVelocityBasedTagComponent'
+)
+
+type RigidBodyTypes =
+  | typeof RigidBodyDynamicTagComponent
+  | typeof RigidBodyFixedTagComponent
+  | typeof RigidBodyKinematicPositionBasedTagComponent
+  | typeof RigidBodyKinematicVelocityBasedTagComponent
+
+export const getTagComponentForRigidBody = (type: RigidBodyType): RigidBodyTypes => {
+  switch (type) {
+    case RigidBodyType.Dynamic:
+      return RigidBodyDynamicTagComponent
+
+    case RigidBodyType.Fixed:
+      return RigidBodyFixedTagComponent
+
+    case RigidBodyType.KinematicPositionBased:
+      return RigidBodyKinematicPositionBasedTagComponent
+
+    case RigidBodyType.KinematicVelocityBased:
+      return RigidBodyKinematicVelocityBasedTagComponent
+  }
+}
